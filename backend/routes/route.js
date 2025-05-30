@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { isAuthenticated } = require('../middleware/auth');
 
 // const { adminRegister, adminLogIn, deleteAdmin, getAdminDetail, updateAdmin } = require('../controllers/admin-controller.js');
 
@@ -24,6 +25,7 @@ const {
     removeStudentAttendance } = require('../controllers/student_controller.js');
 const { subjectCreate, classSubjects, deleteSubjectsByClass, getSubjectDetail, deleteSubject, freeSubjectList, allSubjects, deleteSubjects } = require('../controllers/subject-controller.js');
 const { teacherRegister, teacherLogIn, getTeachers, getTeacherDetail, deleteTeachers, deleteTeachersByClass, deleteTeacher, updateTeacherSubject, teacherAttendance } = require('../controllers/teacher-controller.js');
+const { createResource, getAllResources, getResource, updateResource, deleteResource } = require('../controllers/resourceController');
 
 // Admin
 router.post('/AdminReg', adminRegister);
@@ -115,5 +117,12 @@ router.get("/Subject/:id", getSubjectDetail)
 router.delete("/Subject/:id", deleteSubject)
 router.delete("/Subjects/:id", deleteSubjects)
 router.delete("/SubjectsClass/:id", deleteSubjectsByClass)
+
+// Resources
+router.post('/resources/create', isAuthenticated, createResource);
+router.get('/resources/all', isAuthenticated, getAllResources);
+router.get('/resources/:id', isAuthenticated, getResource);
+router.put('/resources/:id', isAuthenticated, updateResource);
+router.delete('/resources/:id', isAuthenticated, deleteResource);
 
 module.exports = router;

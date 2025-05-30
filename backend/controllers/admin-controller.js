@@ -6,6 +6,7 @@ const Teacher = require('../models/teacherSchema.js');
 const Subject = require('../models/subjectSchema.js');
 const Notice = require('../models/noticeSchema.js');
 const Complain = require('../models/complainSchema.js');
+const jwt = require('jsonwebtoken');
 
 // const adminRegister = async (req, res) => {
 //     try {
@@ -57,61 +58,109 @@ const Complain = require('../models/complainSchema.js');
 
 const adminRegister = async (req, res) => {
     try {
-        const admin = new Admin({
-            ...req.body
-        });
+        const { email, password, name, schoolName } = req.body;
 
-        const existingAdminByEmail = await Admin.findOne({ email: req.body.email });
-        const existingSchool = await Admin.findOne({ schoolName: req.body.schoolName });
+        if (!email || !password || !name || !schoolName) {
+            return res.status(400).json({ message: "All fields are required" });
+        }
+
+        const existingAdminByEmail = await Admin.findOne({ email });
+        const existingSchool = await Admin.findOne({ schoolName });
 
         if (existingAdminByEmail) {
-            res.send({ message: 'Email already exists' });
+            return res.status(400).json({ message: 'Email already exists' });
         }
-        else if (existingSchool) {
-            res.send({ message: 'School name already exists' });
+        
+        if (existingSchool) {
+            return res.status(400).json({ message: 'School name already exists' });
         }
-        else {
-            let result = await admin.save();
-            result.password = undefined;
-            res.send(result);
-        }
-    } catch (err) {
-        res.status(500).json(err);
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        const admin = new Admin({
+            name,
+            email,
+            schoolName,
+            password: hashedPassword,
+            role: 'Admin'
+        });
+
+        const savedAdmin = await admin.save();
+        
+        // Create JWT token
+        const token = jwt.sign(
+            { id: savedAdmin._id, role: savedAdmin.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        // Remove sensitive data
+        const adminData = savedAdmin.toObject();
+        delete adminData.password;
+
+        res.status(201).json({
+            ...adminData,
+            token
+        });
+    } catch (error) {
+        console.error('Admin registration error:', error);
+        res.status(500).json({ message: "Internal server error" });
     }
 };
 
 const adminLogIn = async (req, res) => {
-    if (req.body.email && req.body.password) {
-        let admin = await Admin.findOne({ email: req.body.email });
-        if (admin) {
-            if (req.body.password === admin.password) {
-                admin.password = undefined;
-                res.send(admin);
-            } else {
-                res.send({ message: "Invalid password" });
-            }
-        } else {
-            res.send({ message: "User not found" });
+    try {
+        const { email, password } = req.body;
+        
+        if (!email || !password) {
+            return res.status(400).json({ message: "Email and password are required" });
         }
-    } else {
-        res.send({ message: "Email and password are required" });
+
+        const admin = await Admin.findOne({ email });
+        if (!admin) {
+            return res.status(404).json({ message: "Admin not found" });
+        }
+
+        const isPasswordValid = await bcrypt.compare(password, admin.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: "Invalid password" });
+        }
+
+        // Create JWT token
+        const token = jwt.sign(
+            { id: admin._id, role: admin.role },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
+
+        // Remove sensitive data
+        const adminData = admin.toObject();
+        delete adminData.password;
+
+        res.status(200).json({
+            ...adminData,
+            token
+        });
+    } catch (error) {
+        console.error('Admin login error:', error);
+        res.status(500).json({ message: "Internal server error" });
     }
 };
 
 const getAdminDetail = async (req, res) => {
     try {
-        let admin = await Admin.findById(req.params.id);
-        if (admin) {
-            admin.password = undefined;
-            res.send(admin);
+        const admin = await Admin.findById(req.params.id).select('-password');
+        if (!admin) {
+            return res.status(404).json({ message: "Admin not found" });
         }
-        else {
-            res.send({ message: "No admin found" });
-        }
-    } catch (err) {
-        res.status(500).json(err);
+        res.status(200).json(admin);
+    } catch (error) {
+        console.error('Get admin detail error:', error);
+        res.status(500).json({ message: "Internal server error" });
     }
-}
+};
 
 // const deleteAdmin = async (req, res) => {
 //     try {
